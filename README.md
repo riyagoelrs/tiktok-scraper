@@ -86,3 +86,12 @@ Each video in the JSON includes:
 ## License
 
 MIT
+
+---
+
+## Also in this repo
+
+**[`cluely/`](cluely/)** — an unrelated side project: a desktop call copilot that
+listens to your mic and your system audio, transcribes both, and answers questions the
+other person asks while you're still on the call. Electron + Deepgram + Claude. See
+[cluely/README.md](cluely/README.md).

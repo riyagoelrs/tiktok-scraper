@@ -11,3 +11,8 @@ venv/
 
 # macOS
 .DS_Store
+
+# Node / Electron (cluely/)
+node_modules/
+cluely/dist/
+cluely/context.md

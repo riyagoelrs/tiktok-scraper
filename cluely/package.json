@@ -1,0 +1,30 @@
+{
+  "name": "cluely",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Real-time call copilot: listens to your mic and the other side's system audio, transcribes both, and answers questions on screen as they're asked.",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "npm run build:main && npm run build:renderer && npm run build:static",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "tsc -p tsconfig.renderer.json",
+    "build:static": "node scripts/copy-static.mjs",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "test": "npm run build:main && node --test test/selftest.mjs",
+    "smoke": "npm run build && electron scripts/smoke.cjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
+    "dotenv": "^17.4.2",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.18.1",
+    "electron": "^43.4.1",
+    "typescript": "^5.9.3"
+  }
+}

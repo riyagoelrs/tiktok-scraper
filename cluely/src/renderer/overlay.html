@@ -1,0 +1,42 @@
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'" />
+<title>cluely</title>
+<link rel="stylesheet" href="./overlay.css" />
+<body>
+  <div class="shell">
+    <header class="bar">
+      <div class="brand">
+        <span id="rec" class="rec" data-state="idle"></span>
+        <span class="name">cluely</span>
+      </div>
+      <div class="chips">
+        <span class="chip" id="chip-mic" title="Microphone">ME</span>
+        <span class="chip" id="chip-sys" title="System audio">THEM</span>
+      </div>
+      <div class="actions">
+        <button id="btn-listen" class="btn primary" title="⌘/Ctrl+Shift+L">Listen</button>
+        <button id="btn-auto" class="btn" title="Answer questions automatically">Auto</button>
+        <button id="btn-ghost" class="btn" title="Let clicks pass through the overlay">Ghost</button>
+        <button id="btn-context" class="btn" title="Edit the notes Claude gets on every answer">Notes</button>
+        <button id="btn-clear" class="btn" title="⌘/Ctrl+Shift+K">Clear</button>
+      </div>
+    </header>
+
+    <div id="notice" class="notice" hidden></div>
+
+    <main id="answers" class="answers">
+      <div class="empty" id="empty">
+        <p class="empty-title">Nothing yet</p>
+        <p class="empty-body">
+          Hit <b>Listen</b>, then let them talk. Questions get answered here on their own.<br />
+          <b>⌘/Ctrl+Shift+Space</b> answers on demand · <b>⌘/Ctrl+Shift+H</b> hides this.
+        </p>
+      </div>
+    </main>
+
+    <footer class="live">
+      <div id="transcript" class="transcript"></div>
+    </footer>
+  </div>
+  <script type="module" src="./overlay.js"></script>
+</body>

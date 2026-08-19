@@ -53,6 +53,9 @@ The overlay sets `setContentProtection(true)`, so it stays out of screen shares 
 screenshots — your own notes don't end up on the shared screen. `CONTENT_PROTECTION=false`
 in `.env` turns that off (useful when debugging, since screenshots come back blank).
 
+Treat this as a courtesy, not a guarantee: on macOS 15.4+ some modern capture APIs can
+see through it, and no window flag has ever stopped a phone camera.
+
 ### context.md is the whole game
 
 Without it you get generic answers. With three bullets about who you are and what the
@@ -66,11 +69,13 @@ depends on the OS:
 
 - **Windows** — works out of the box. Electron's `getDisplayMedia` loopback grabs
   system audio directly.
-- **macOS** — needs macOS 13+ for loopback, and you must grant Screen Recording
-  permission (System Settings → Privacy & Security → Screen Recording). If your macOS
-  is older, or loopback comes back silent, install a virtual audio device such as
-  [BlackHole](https://github.com/ExistentialAudio/BlackHole), route your call app's
-  output through a Multi-Output Device that includes it, and set
+- **macOS** — needs **macOS 14.4+**, and you must grant Screen Recording permission
+  (System Settings → Privacy & Security → Screen Recording). Loopback goes through
+  ScreenCaptureKit, which Chromium keeps behind two feature flags; the app enables
+  `MacLoopbackAudioForScreenShare` and `MacSckSystemAudioLoopbackOverride` at startup
+  so you don't have to. Below 14.4, or if loopback still comes back silent, install a
+  virtual audio device such as [BlackHole](https://github.com/ExistentialAudio/BlackHole),
+  route your call app's output through a Multi-Output Device that includes it, and set
   `SYSTEM_AUDIO_DEVICE=BlackHole` in `.env`.
 - **Linux** — loopback support varies by desktop and portal. The reliable path is a
   PulseAudio/PipeWire monitor source: `SYSTEM_AUDIO_DEVICE=Monitor of`.
@@ -119,6 +124,28 @@ IPC → Deepgram socket, and the only thing retained is text.
 
 Swapping the transcription engine means implementing `SttProvider` in `src/main/stt/`
 and adding a case to `createSttProvider` — nothing upstream knows which engine is running.
+
+## Prior art
+
+This problem has been solved several times over, and the versions worth reading differ
+in ways that shaped the choices here:
+
+- **[pickle-com/glass](https://github.com/pickle-com/glass)** — the original open-source
+  build of this idea; the reference most later projects fork from.
+- **[cue](https://github.com/Blueturboguy07/cue)** — macOS-focused, and the source of the
+  ScreenCaptureKit flag detail above. Also the most honest about where invisibility stops
+  working.
+- **[Natively](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant)** —
+  the maximal version: a Rust native module for capture, local Whisper/Moonshine models,
+  local RAG, and a long list of BYOK providers. Worth reading if you ever want this to run
+  fully offline; note it has no Linux support.
+- **[Open-Cluely](https://github.com/shubhamshnd/Open-Cluely)** — Electron + AssemblyAI +
+  Gemini, Windows-first. Notably it does *not* auto-detect questions: every answer is a
+  button press.
+
+Where this one differs: answers fire automatically off a local question heuristic rather
+than a hotkey, speaker attribution comes from running two independent STT sessions rather
+than diarization, and the whole thing is small enough to read in one sitting.
 
 ## Before you use this on a real call
 

@@ -7,6 +7,17 @@ import { looksLikeQuestion, questionKey } from './question-detector';
 import { createCaptureWindow, createOverlayWindow, installMediaHandlers } from './windows';
 import type { AnswerPatch, CaptureState, Speaker, Status, TranscriptLine } from '../shared/types';
 
+// macOS routes loopback audio through ScreenCaptureKit, and Chromium keeps that
+// path behind feature flags. Without these, getDisplayMedia returns a stream with
+// no audio track on macOS and the THEM channel stays permanently silent.
+// Must run before the app is ready, hence the top-level placement.
+if (process.platform === 'darwin') {
+  app.commandLine.appendSwitch(
+    'enable-features',
+    'MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride',
+  );
+}
+
 /** Wait this long after a question before answering, so follow-on clauses land first. */
 const ANSWER_DEBOUNCE_MS = 900;
 /** Don't re-answer the same question if it comes round again within this window. */

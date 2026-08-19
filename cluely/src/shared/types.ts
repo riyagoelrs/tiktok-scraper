@@ -23,6 +23,8 @@ export interface Status {
   system: SourceStatus;
   autoAnswer: boolean;
   clickThrough: boolean;
+  /** Human-readable summary of the indexed materials library. */
+  materials?: string;
   message?: string;
 }
 

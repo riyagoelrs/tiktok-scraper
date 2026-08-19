@@ -1,0 +1,7 @@
+node_modules/
+dist/
+
+# Your keys, your notes, your prep material — never commit these.
+.env
+context.md
+materials/

@@ -192,7 +192,7 @@ export class DeepgramProvider implements SttProvider {
 
   open(label: string, events: SttEvents): SttSession {
     if (!this.cfg.deepgramApiKey) {
-      throw new Error('DEEPGRAM_API_KEY is not set — add it to cluely/.env');
+      throw new Error('DEEPGRAM_API_KEY is not set — add it to .env');
     }
     return new DeepgramSession(label, this.url, this.cfg.deepgramApiKey, events);
   }

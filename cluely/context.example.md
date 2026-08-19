@@ -1,8 +1,11 @@
 # Context for the copilot
 
-Copy this to `cluely/context.md` and make it yours. Everything here goes to Claude
-with every answer, so keep it short, factual, and current — this is the difference
-between a generic answer and one that sounds like you.
+Copy this to `context.md` and make it yours. Everything here goes to the model with
+every answer, so keep it short, factual, and current — this is the difference between
+a generic answer and one that sounds like you.
+
+Longer material (prep docs, transcripts, specs) belongs in `materials/` instead, where
+only the relevant passages get pulled in per question.
 
 ## Who I am
 - Riya, backend engineer, 5 years, mostly Python and Postgres

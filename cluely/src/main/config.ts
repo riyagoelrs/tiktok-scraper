@@ -5,8 +5,30 @@ import * as dotenv from 'dotenv';
 
 export type ThinkingMode = 'off' | 'adaptive';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type AnswerProviderName = 'ollama' | 'claude';
+export type SttProviderName = 'whisper' | 'deepgram';
 
 export interface Config {
+  sttProvider: SttProviderName;
+  answerProvider: AnswerProviderName;
+
+  // --- local stack (no API key) ---
+  /** Path to a whisper.cpp CLI binary. */
+  whisperBinary: string;
+  /** Path to a ggml model file, e.g. ggml-base.en.bin. */
+  whisperModel: string;
+  whisperThreads: number;
+  /** Base URL of the Ollama daemon. */
+  ollamaUrl: string;
+  ollamaModel: string;
+  /** Embedding model used to index materials; empty disables embeddings. */
+  ollamaEmbedModel: string;
+
+  /** Folder of notes, prep docs and transcripts consulted on every answer. */
+  materialsDir: string;
+  /** How many retrieved chunks to put in front of the model. */
+  materialsTopK: number;
+
   anthropicApiKey: string;
   deepgramApiKey: string;
   deepgramModel: string;
@@ -78,7 +100,22 @@ export function loadConfig(): Config {
     if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
   }
 
+  const materialsDir = (process.env.MATERIALS_DIR ?? '').trim() || path.join(appRoot, 'materials');
+
   cached = {
+    sttProvider: oneOf(process.env.STT_PROVIDER, ['whisper', 'deepgram'] as const, 'whisper'),
+    answerProvider: oneOf(process.env.ANSWER_PROVIDER, ['ollama', 'claude'] as const, 'ollama'),
+
+    whisperBinary: (process.env.WHISPER_BINARY ?? 'whisper-cli').trim(),
+    whisperModel: (process.env.WHISPER_MODEL ?? '').trim(),
+    whisperThreads: int(process.env.WHISPER_THREADS, 4),
+    ollamaUrl: (process.env.OLLAMA_URL ?? 'http://127.0.0.1:11434').trim().replace(/\/$/, ''),
+    ollamaModel: (process.env.OLLAMA_MODEL ?? 'llama3.1:8b').trim(),
+    ollamaEmbedModel: (process.env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text').trim(),
+
+    materialsDir,
+    materialsTopK: int(process.env.MATERIALS_TOP_K, 4),
+
     anthropicApiKey: (process.env.ANTHROPIC_API_KEY ?? '').trim(),
     deepgramApiKey: (process.env.DEEPGRAM_API_KEY ?? '').trim(),
     deepgramModel: (process.env.DEEPGRAM_MODEL ?? 'nova-3').trim(),

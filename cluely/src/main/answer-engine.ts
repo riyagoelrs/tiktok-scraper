@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import Anthropic from '@anthropic-ai/sdk';
 import { readOperatorContext, type Config } from './config';
+import { createAnswerProvider, type AnswerProvider } from './answer';
+import type { Materials } from './materials';
 import type { Transcript } from './transcript';
 import type { AnswerPatch } from '../shared/types';
 
@@ -12,7 +13,8 @@ How to answer:
 - Lead with the answer itself. No preamble, no restating the question, no "Great question".
 - Default to 2-4 short bullets, under 60 words total. Only go longer when the answer is genuinely a list or a sequence of steps.
 - Be concrete: names, numbers, the actual API, the actual tradeoff. Vague advice is useless at conversation speed.
-- Use the operator context below whenever it is relevant. Never invent facts about the operator, their company, their history, or their numbers — if the context does not cover it, give the general answer and mark what only they can fill in with [your number here].
+- When the material below answers the question, use its wording and its numbers. That material is the operator's own preparation and it outranks your general knowledge.
+- Never invent facts about the operator, their company, their history, or their numbers. If the material does not cover it, give the general answer and mark what only they can fill in with [your number here].
 - If the question is ambiguous, give the most likely reading in one line, then offer the clarifying question the operator should ask back.
 - Plain text only: short bullets with "-", no markdown headings, no bold, no code fences unless the answer is literally code.
 - Do not include internal or system XML tags in your response.`;
@@ -28,23 +30,16 @@ export interface AnswerRequest {
  * on a live call a stale answer is worse than no answer.
  */
 export class AnswerEngine {
-  private client: Anthropic | undefined;
+  private readonly provider: AnswerProvider;
   private inFlight: AbortController | undefined;
 
   constructor(
     private readonly cfg: Config,
     private readonly transcript: Transcript,
+    private readonly materials: Materials,
     private readonly emit: (patch: AnswerPatch) => void,
-  ) {}
-
-  private getClient(): Anthropic {
-    if (!this.client) {
-      if (!this.cfg.anthropicApiKey) {
-        throw new Error('ANTHROPIC_API_KEY is not set — add it to cluely/.env');
-      }
-      this.client = new Anthropic({ apiKey: this.cfg.anthropicApiKey });
-    }
-    return this.client;
+  ) {
+    this.provider = createAnswerProvider(cfg);
   }
 
   cancel(): void {
@@ -63,61 +58,42 @@ export class AnswerEngine {
     this.emit({ id, question, body: '', status: 'thinking', trigger: request.trigger, at: Date.now() });
 
     try {
-      const client = this.getClient();
-      const stream = client.messages.stream(
-        {
-          model: this.cfg.answerModel,
-          max_tokens: this.cfg.answerMaxTokens,
-          system: [
-            {
-              type: 'text',
-              text: this.buildSystem(),
-              cache_control: { type: 'ephemeral' },
-            },
-          ],
-          messages: [{ role: 'user', content: this.buildUserMessage(question) }],
-          output_config: { effort: this.cfg.answerEffort },
-          thinking:
-            this.cfg.answerThinking === 'adaptive'
-              ? { type: 'adaptive' }
-              : { type: 'disabled' },
-        },
-        { signal: controller.signal },
-      );
+      const system = await this.buildSystem(question);
+      if (controller.signal.aborted) return;
 
       let started = false;
-      stream.on('text', (delta) => {
-        if (!started) {
-          started = true;
-          this.emit({ id, status: 'streaming' });
-        }
-        this.emit({ id, append: delta });
+      await this.provider.generate({
+        system,
+        user: this.buildUserMessage(question),
+        maxTokens: this.cfg.answerMaxTokens,
+        signal: controller.signal,
+        onDelta: (delta) => {
+          if (!started) {
+            started = true;
+            this.emit({ id, status: 'streaming' });
+          }
+          this.emit({ id, append: delta });
+        },
       });
 
-      const final = await stream.finalMessage();
-
-      if (final.stop_reason === 'refusal') {
-        this.emit({
-          id,
-          body: 'Claude declined to answer this one. Ask it yourself, out loud.',
-          status: 'error',
-        });
-        return;
-      }
-      this.emit({ id, status: 'done' });
+      this.emit({ id, status: started ? 'done' : 'error', ...(started ? {} : { body: 'The model returned nothing.' }) });
     } catch (err) {
       if (controller.signal.aborted) return; // superseded by a newer question
-      this.emit({ id, body: describeError(err), status: 'error' });
+      this.emit({ id, body: err instanceof Error ? err.message : String(err), status: 'error' });
     } finally {
       if (this.inFlight === controller) this.inFlight = undefined;
     }
   }
 
-  private buildSystem(): string {
-    // Re-read on every answer so edits to context.md take effect without a restart.
+  private async buildSystem(question: string): Promise<string> {
+    // Both are re-read per answer so edits during a call take effect immediately.
     const context = readOperatorContext(this.cfg);
-    if (!context) return SYSTEM_PROMPT;
-    return `${SYSTEM_PROMPT}\n\n<operator_context>\n${context}\n</operator_context>`;
+    const retrieved = await this.materials.prompt(question);
+
+    let system = SYSTEM_PROMPT;
+    if (context) system += `\n\n<operator_context>\n${context}\n</operator_context>`;
+    if (retrieved) system += `\n\n<materials>\n${retrieved}\n</materials>`;
+    return system;
   }
 
   private buildUserMessage(question: string): string {
@@ -131,27 +107,4 @@ export class AnswerEngine {
       'Answer it for me now.',
     ].join('\n');
   }
-}
-
-/** Most specific first — a single catch-all would hide what is actually wrong. */
-function describeError(err: unknown): string {
-  if (err instanceof Anthropic.NotFoundError) {
-    return 'Model not found — check ANSWER_MODEL in .env.';
-  }
-  if (err instanceof Anthropic.AuthenticationError) {
-    return 'Anthropic rejected the API key — check ANTHROPIC_API_KEY.';
-  }
-  if (err instanceof Anthropic.PermissionDeniedError) {
-    return 'This API key is not allowed to use that model.';
-  }
-  if (err instanceof Anthropic.RateLimitError) {
-    return 'Rate limited by the Anthropic API. Try again in a moment.';
-  }
-  if (err instanceof Anthropic.APIConnectionError) {
-    return 'Could not reach the Anthropic API — check your network.';
-  }
-  if (err instanceof Anthropic.APIError) {
-    return `Anthropic API error ${err.status ?? '?'}: ${err.message}`;
-  }
-  return err instanceof Error ? err.message : String(err);
 }

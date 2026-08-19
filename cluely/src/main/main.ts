@@ -1,6 +1,7 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron';
 import { ensureContextFile, loadConfig, type Config } from './config';
 import { createSttProvider, type SttProvider, type SttSession } from './stt';
+import { Materials } from './materials';
 import { Transcript } from './transcript';
 import { AnswerEngine } from './answer-engine';
 import { looksLikeQuestion, questionKey } from './question-detector';
@@ -27,6 +28,7 @@ class App {
   private readonly cfg: Config;
   private readonly provider: SttProvider;
   private readonly transcript: Transcript;
+  private readonly materials: Materials;
   private readonly answers: AnswerEngine;
 
   private overlay: BrowserWindow | undefined;
@@ -42,7 +44,10 @@ class App {
     this.cfg = loadConfig();
     this.provider = createSttProvider(this.cfg);
     this.transcript = new Transcript((line) => this.send('ui:transcript', line));
-    this.answers = new AnswerEngine(this.cfg, this.transcript, (patch) => this.send('ui:answer', patch));
+    this.materials = new Materials(this.cfg);
+    this.answers = new AnswerEngine(this.cfg, this.transcript, this.materials, (patch) =>
+      this.send('ui:answer', patch),
+    );
     this.status = {
       state: 'idle',
       mic: { capturing: false, stt: 'down' },
@@ -195,15 +200,13 @@ class App {
 
     // The overlay asks for state once it has mounted, so there is no race with load.
     ipcMain.on('ctl:ready', () => {
-      const missing = [
-        this.cfg.anthropicApiKey ? '' : 'ANTHROPIC_API_KEY',
-        this.cfg.deepgramApiKey ? '' : 'DEEPGRAM_API_KEY',
-      ].filter(Boolean);
-      this.pushStatus({
-        message: missing.length
-          ? `Missing ${missing.join(' and ')} — copy cluely/.env.example to cluely/.env and fill it in.`
-          : undefined,
-      });
+      this.pushStatus({ message: this.setupProblem() });
+      void this.reloadMaterials();
+    });
+
+    ipcMain.on('ctl:reload-materials', () => void this.reloadMaterials());
+    ipcMain.on('ctl:open-materials', () => {
+      void shell.openPath(this.materials.ensureDir());
     });
 
     ipcMain.on('ctl:toggle-listen', () => this.toggleListening());
@@ -228,6 +231,31 @@ class App {
       void shell.openPath(ensureContextFile(this.cfg));
     });
     ipcMain.on('ctl:quit', () => app.quit());
+  }
+
+  /** Configuration problems worth interrupting the user about, before a call starts. */
+  private setupProblem(): string | undefined {
+    if (this.cfg.sttProvider === 'whisper' && !this.cfg.whisperModel) {
+      return 'WHISPER_MODEL is not set — point it at a ggml model file (see the README).';
+    }
+    if (this.cfg.sttProvider === 'deepgram' && !this.cfg.deepgramApiKey) {
+      return 'DEEPGRAM_API_KEY is not set — add it to .env.';
+    }
+    if (this.cfg.answerProvider === 'claude' && !this.cfg.anthropicApiKey) {
+      return 'ANTHROPIC_API_KEY is not set — add it to .env, or set ANSWER_PROVIDER=ollama.';
+    }
+    return undefined;
+  }
+
+  private async reloadMaterials(): Promise<void> {
+    await this.materials.load();
+    const { files, chunks, embedded, error } = this.materials.stats();
+    this.pushStatus({
+      materials: files
+        ? `${files} file${files === 1 ? '' : 's'}, ${chunks} passages${embedded ? ', semantic' : ''}`
+        : 'none',
+      message: error ?? this.setupProblem(),
+    });
   }
 
   private toggleListening(): void {

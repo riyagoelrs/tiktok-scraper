@@ -1,5 +1,6 @@
 import type { Config } from '../config';
 import { DeepgramProvider } from './deepgram';
+import { WhisperProvider } from './whisper';
 import type { SttProvider } from './types';
 
 /**
@@ -7,12 +8,11 @@ import type { SttProvider } from './types';
  * implementing SttProvider — nothing upstream knows which one is in use.
  */
 export function createSttProvider(cfg: Config): SttProvider {
-  const requested = (process.env.STT_PROVIDER ?? 'deepgram').trim().toLowerCase();
-  switch (requested) {
+  switch (cfg.sttProvider) {
+    case 'whisper':
+      return new WhisperProvider(cfg);
     case 'deepgram':
       return new DeepgramProvider(cfg);
-    default:
-      throw new Error(`Unknown STT_PROVIDER "${requested}" (supported: deepgram)`);
   }
 }
 

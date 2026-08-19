@@ -17,6 +17,8 @@ const api = {
   clear: () => ipcRenderer.send('ctl:clear'),
   setClickThrough: (enabled: boolean) => ipcRenderer.send('ctl:click-through', enabled),
   openContext: () => ipcRenderer.send('ctl:open-context'),
+  openMaterials: () => ipcRenderer.send('ctl:open-materials'),
+  reloadMaterials: () => ipcRenderer.send('ctl:reload-materials'),
   quit: () => ipcRenderer.send('ctl:quit'),
 };
 

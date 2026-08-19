@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import { BrowserWindow, desktopCapturer, screen, session } from 'electron';
 import type { Config } from './config';
 
-const OVERLAY_WIDTH = 480;
+const OVERLAY_WIDTH = 520;
 const OVERLAY_HEIGHT = 640;
 const MARGIN = 24;
 

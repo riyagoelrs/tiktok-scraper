@@ -13,7 +13,7 @@
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "test": "npm run build:main && node --test test/selftest.mjs",
+    "test": "npm run build:main && node --test test/selftest.mjs test/local.mjs",
     "smoke": "npm run build && electron scripts/smoke.cjs"
   },
   "dependencies": {

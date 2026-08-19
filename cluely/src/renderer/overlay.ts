@@ -12,6 +12,8 @@ interface OverlayApi {
   clear(): void;
   setClickThrough(enabled: boolean): void;
   openContext(): void;
+  openMaterials(): void;
+  reloadMaterials(): void;
   quit(): void;
 }
 
@@ -40,6 +42,7 @@ const chipSys = el('chip-sys');
 const btnListen = el<HTMLButtonElement>('btn-listen');
 const btnAuto = el<HTMLButtonElement>('btn-auto');
 const btnGhost = el<HTMLButtonElement>('btn-ghost');
+const chipDocs = el('chip-docs');
 
 interface CardNodes {
   root: HTMLElement;
@@ -155,6 +158,12 @@ function applyStatus(status: Status): void {
   chipMic.title = status.mic.error ?? `mic: ${status.mic.capturing ? 'capturing' : 'off'} / stt ${status.mic.stt}`;
   chipSys.title = status.system.error ?? `system: ${status.system.capturing ? 'capturing' : 'off'} / stt ${status.system.stt}`;
 
+  const indexed = status.materials && status.materials !== 'none';
+  chipDocs.dataset.live = String(Boolean(indexed));
+  chipDocs.title = indexed
+    ? `Materials indexed: ${status.materials} — click to re-index`
+    : 'No materials indexed — click "Docs" to open the folder';
+
   const problem = status.message ?? status.mic.error ?? status.system.error;
   noticeEl.textContent = problem ?? '';
   noticeEl.hidden = !problem;
@@ -177,6 +186,9 @@ btnListen.addEventListener('click', () => window.cluely.toggleListen());
 btnAuto.addEventListener('click', () => window.cluely.toggleAuto());
 el('btn-clear').addEventListener('click', () => window.cluely.clear());
 el('btn-context').addEventListener('click', () => window.cluely.openContext());
+el('btn-materials').addEventListener('click', () => window.cluely.openMaterials());
+// Re-index after editing the folder without restarting the app.
+chipDocs.addEventListener('click', () => window.cluely.reloadMaterials());
 btnGhost.addEventListener('click', () => {
   ghost = !ghost;
   window.cluely.setClickThrough(ghost);

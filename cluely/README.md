@@ -40,6 +40,7 @@ curl -L -o ~/ggml-base.en.bin \
 ```bash
 ollama pull llama3.1:8b       # answers
 ollama pull nomic-embed-text  # semantic search over your materials
+ollama pull llava:7b          # optional: reading your screen
 ```
 
 **3. The app**
@@ -92,11 +93,18 @@ strip at the bottom.
 |---|---|
 | `⌘/Ctrl+Shift+L` | Start / stop listening |
 | `⌘/Ctrl+Shift+Space` | Answer whatever they just said, right now |
+| `⌘/Ctrl+Shift+S` | Answer using what's on screen right now |
 | `⌘/Ctrl+Shift+H` | Hide / show the overlay |
 | `⌘/Ctrl+Shift+K` | Clear transcript and answers |
 | `⌘/Ctrl+Shift+←/→` | Nudge the overlay sideways |
 
-Title bar: **Auto** toggles automatic answering, **Ghost** makes the overlay
+**Screen** (`⌘/Ctrl+Shift+S`) is for questions the audio can't carry — "how would you
+fix this?" over a code editor. It grabs the screen, hides the overlay first so its own
+answers aren't in the shot, and routes to `OLLAMA_VISION_MODEL` instead of the text
+model. Expect it to be slower than a spoken answer: a vision model is a bigger load,
+and Ollama may have to swap models in.
+
+Title bar: **Screen** reads your screen, **Auto** toggles automatic answering, **Ghost** makes the overlay
 click-through (move the pointer over the title bar to get it back), **Notes** opens
 `context.md`, **Docs** opens `materials/`.
 
@@ -134,6 +142,7 @@ All in `.env`; `.env.example` is the annotated list.
 | `ANSWER_PROVIDER` | `ollama` | `claude` for cloud answers (needs a key) |
 | `WHISPER_MODEL` | — | **Required.** Path to your ggml model file |
 | `OLLAMA_MODEL` | `llama3.1:8b` | Trade answer quality against latency |
+| `OLLAMA_VISION_MODEL` | `llava:7b` | Only used for screen questions |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Blank disables semantic search; keyword search still runs |
 | `MATERIALS_TOP_K` | `4` | More passages = better grounding, slower answers |
 | `AUTO_ANSWER` | `true` | `false` makes every answer manual |
@@ -142,6 +151,23 @@ All in `.env`; `.env.example` is the annotated list.
 Both the transcription and answer layers sit behind interfaces (`SttProvider`,
 `AnswerProvider`), so the cloud paths are one file each and swapping in another engine
 means implementing an interface, not rewriting the app.
+
+## What has actually been tested
+
+Being straight about this, because "it compiles" is not the same as "it works":
+
+**Verified end to end** — the build, both typecheck passes, and 29 tests. The utterance
+segmenter is tested against a real 11-second human recording (`test/fixtures/`), not
+just synthetic tones: it finds 4 utterances, keeps 96% of the audio, and a noisy-but-
+silent room produces zero. The Ollama protocol is tested against a real HTTP server,
+the whisper subprocess against a stub binary, and every whisper CLI flag the app passes
+was checked against the real `whisper-cli --help`. Screen capture is verified in a real
+Electron process and returns a valid PNG.
+
+**Not verified** — live audio devices, and inference with real model weights. Neither
+can run in a headless CI container. The first time real speech goes in and a real model
+answers will be on your machine, so budget an hour for first-run friction and test
+against a YouTube video before a call that matters.
 
 ## How it's put together
 
@@ -156,6 +182,7 @@ src/main/          Electron main — audio routing, transcription, answers
     ollama.ts        local answers, streamed over NDJSON
     claude.ts        cloud alternative behind the same interface
   materials.ts       indexes materials/, retrieves per question
+  screen.ts          still capture of the primary display, for screen questions
   transcript.ts      rolling record, one in-flight partial per speaker
   question-detector.ts  local heuristic: "did they just ask me something?"
   answer-engine.ts   prompt construction, cancellation, streaming
@@ -196,15 +223,14 @@ in ways that shaped the choices here:
 - **[Open-Cluely](https://github.com/shubhamshnd/Open-Cluely)** — Electron + AssemblyAI +
   Gemini, Windows-first. Every answer is a button press.
 - **[free-cluely](https://github.com/Prat011/free-cluely)** — Gemini or Ollama, and the
-  screenshot-analysis approach this one currently lacks.
+  source of the screenshot-analysis idea now wired in here.
 
 Where this one differs: answers fire automatically off a local question heuristic
 rather than a hotkey, speaker attribution comes from two independent transcription
 sessions rather than diarization, and the default configuration has no cloud in it.
 
-**Not built yet:** screen capture. Several of the projects above screenshot the screen
-and feed it to the model, which matters when the question is a coding problem *on
-screen* rather than something spoken. That's the most valuable thing to add next.
+**Not built yet:** a settings UI (config is `.env` only), packaged installers, and
+meeting-notes/recap output. All are in the projects above if you want them.
 
 ## Before you use this on a real call
 

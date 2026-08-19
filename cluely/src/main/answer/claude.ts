@@ -26,7 +26,20 @@ export class ClaudeProvider implements AnswerProvider {
           model: this.cfg.answerModel,
           max_tokens: request.maxTokens,
           system: [{ type: 'text', text: request.system, cache_control: { type: 'ephemeral' } }],
-          messages: [{ role: 'user', content: request.user }],
+          messages: [
+            {
+              role: 'user',
+              content: request.image
+                ? [
+                    {
+                      type: 'image' as const,
+                      source: { type: 'base64' as const, media_type: 'image/png' as const, data: request.image },
+                    },
+                    { type: 'text' as const, text: request.user },
+                  ]
+                : request.user,
+            },
+          ],
           output_config: { effort: this.cfg.answerEffort },
           thinking:
             this.cfg.answerThinking === 'adaptive' ? { type: 'adaptive' } : { type: 'disabled' },

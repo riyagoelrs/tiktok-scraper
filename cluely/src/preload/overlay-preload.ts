@@ -13,6 +13,7 @@ const api = {
   ready: () => ipcRenderer.send('ctl:ready'),
   toggleListen: () => ipcRenderer.send('ctl:toggle-listen'),
   answerNow: () => ipcRenderer.send('ctl:answer-now'),
+  answerScreen: () => ipcRenderer.send('ctl:answer-screen'),
   toggleAuto: () => ipcRenderer.send('ctl:toggle-auto'),
   clear: () => ipcRenderer.send('ctl:clear'),
   setClickThrough: (enabled: boolean) => ipcRenderer.send('ctl:click-through', enabled),

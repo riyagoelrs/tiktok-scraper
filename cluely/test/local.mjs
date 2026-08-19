@@ -183,6 +183,62 @@ test('ollama provider streams tokens from a live server', async () => {
   server.close();
 });
 
+test('ollama provider sends a screenshot to the vision model, not the text model', async () => {
+  let received;
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      received = JSON.parse(body);
+      res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+      res.end(JSON.stringify({ message: { content: 'Off by one on line 12.' }, done: true }) + '\n');
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${server.address().port}`;
+
+  const provider = new OllamaProvider({ ollamaUrl: url, ollamaModel: 'llama3.1:8b', ollamaVisionModel: 'llava:7b' });
+  let text = '';
+  await provider.generate({
+    system: 'be brief',
+    user: 'what is wrong with this?',
+    image: 'iVBORw0KGgo=',
+    maxTokens: 100,
+    signal: new AbortController().signal,
+    onDelta: (d) => { text += d; },
+  });
+
+  assert.equal(received.model, 'llava:7b', 'swapped to the multimodal model');
+  assert.deepEqual(received.messages[1].images, ['iVBORw0KGgo=']);
+  assert.equal(text, 'Off by one on line 12.');
+  server.close();
+});
+
+test('ollama provider leaves images off when there is no screenshot', async () => {
+  let received;
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      received = JSON.parse(body);
+      res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+      res.end(JSON.stringify({ message: { content: 'ok' }, done: true }) + '\n');
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${server.address().port}`;
+
+  const provider = new OllamaProvider({ ollamaUrl: url, ollamaModel: 'llama3.1:8b', ollamaVisionModel: 'llava:7b' });
+  await provider.generate({
+    system: '', user: 'hi', maxTokens: 10,
+    signal: new AbortController().signal, onDelta: () => {},
+  });
+
+  assert.equal(received.model, 'llama3.1:8b', 'stayed on the fast text model');
+  assert.equal(received.messages[1].images, undefined, 'no empty images array');
+  server.close();
+});
+
 test('ollama provider explains a missing model instead of leaking a 404', async () => {
   const server = http.createServer((_req, res) => {
     res.writeHead(404, { 'content-type': 'text/plain' });

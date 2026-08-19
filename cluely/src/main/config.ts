@@ -21,6 +21,8 @@ export interface Config {
   /** Base URL of the Ollama daemon. */
   ollamaUrl: string;
   ollamaModel: string;
+  /** Multimodal model used when a screenshot is attached. */
+  ollamaVisionModel: string;
   /** Embedding model used to index materials; empty disables embeddings. */
   ollamaEmbedModel: string;
 
@@ -111,6 +113,7 @@ export function loadConfig(): Config {
     whisperThreads: int(process.env.WHISPER_THREADS, 4),
     ollamaUrl: (process.env.OLLAMA_URL ?? 'http://127.0.0.1:11434').trim().replace(/\/$/, ''),
     ollamaModel: (process.env.OLLAMA_MODEL ?? 'llama3.1:8b').trim(),
+    ollamaVisionModel: (process.env.OLLAMA_VISION_MODEL ?? 'llava:7b').trim(),
     ollamaEmbedModel: (process.env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text').trim(),
 
     materialsDir,

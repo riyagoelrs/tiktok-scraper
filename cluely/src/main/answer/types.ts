@@ -1,6 +1,8 @@
 export interface GenerateRequest {
   system: string;
   user: string;
+  /** Base64 PNG of the screen, when the question is about what's on it. */
+  image?: string;
   maxTokens: number;
   signal: AbortSignal;
   /** Called with each token as it arrives. */

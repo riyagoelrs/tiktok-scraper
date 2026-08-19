@@ -22,6 +22,8 @@ How to answer:
 export interface AnswerRequest {
   question: string;
   trigger: 'auto' | 'manual';
+  /** Base64 PNG of the screen, when the question is about what's on it. */
+  image?: string;
 }
 
 /**
@@ -64,7 +66,8 @@ export class AnswerEngine {
       let started = false;
       await this.provider.generate({
         system,
-        user: this.buildUserMessage(question),
+        user: this.buildUserMessage(question, Boolean(request.image)),
+        image: request.image,
         maxTokens: this.cfg.answerMaxTokens,
         signal: controller.signal,
         onDelta: (delta) => {
@@ -96,9 +99,12 @@ export class AnswerEngine {
     return system;
   }
 
-  private buildUserMessage(question: string): string {
+  private buildUserMessage(question: string, hasImage: boolean): string {
     const window = this.transcript.render(this.cfg.contextLines);
     return [
+      ...(hasImage
+        ? ['The attached screenshot is my screen right now. The question is probably about what is on it.', '']
+        : []),
       'Transcript so far:',
       window || '(nothing transcribed yet)',
       '',

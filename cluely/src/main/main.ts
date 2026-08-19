@@ -2,6 +2,7 @@ import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron';
 import { ensureContextFile, loadConfig, type Config } from './config';
 import { createSttProvider, type SttProvider, type SttSession } from './stt';
 import { Materials } from './materials';
+import { captureScreen } from './screen';
 import { Transcript } from './transcript';
 import { AnswerEngine } from './answer-engine';
 import { looksLikeQuestion, questionKey } from './question-detector';
@@ -161,7 +162,7 @@ class App {
     this.pending = undefined;
   }
 
-  private runAnswer(question: string, trigger: 'auto' | 'manual'): void {
+  private runAnswer(question: string, trigger: 'auto' | 'manual', image?: string): void {
     const key = questionKey(question);
     const now = Date.now();
     for (const [seen, at] of this.answered) {
@@ -170,7 +171,28 @@ class App {
     if (trigger === 'auto' && key && this.answered.has(key)) return;
     if (key) this.answered.set(key, now);
 
-    void this.answers.answer({ question, trigger });
+    void this.answers.answer({ question, trigger, image });
+  }
+
+  /**
+   * Answer with the screen attached, for questions the audio can't carry —
+   * "how would you fix this?" over a code editor.
+   */
+  private async answerWithScreen(): Promise<void> {
+    this.cancelPending();
+    const last = this.transcript.lastFrom('them');
+    try {
+      // Hide first so the overlay's own answers aren't in the screenshot; content
+      // protection covers this on macOS and Windows but not everywhere.
+      const wasVisible = this.overlay?.isVisible() ?? false;
+      if (wasVisible) this.overlay?.hide();
+      const image = await captureScreen();
+      if (wasVisible) this.overlay?.showInactive();
+      this.runAnswer(last?.text ?? 'What is on my screen?', 'manual', image);
+    } catch (err) {
+      this.overlay?.showInactive();
+      this.pushStatus({ message: err instanceof Error ? err.message : String(err) });
+    }
   }
 
   /** Hotkey path: answer whatever they last said, question-shaped or not. */
@@ -211,6 +233,7 @@ class App {
 
     ipcMain.on('ctl:toggle-listen', () => this.toggleListening());
     ipcMain.on('ctl:answer-now', () => this.answerNow());
+    ipcMain.on('ctl:answer-screen', () => void this.answerWithScreen());
     ipcMain.on('ctl:toggle-auto', () => {
       this.status.autoAnswer = !this.status.autoAnswer;
       this.pushStatus();
@@ -267,6 +290,7 @@ class App {
     const bindings: Array<[string, () => void]> = [
       ['CommandOrControl+Shift+L', () => this.toggleListening()],
       ['CommandOrControl+Shift+Space', () => this.answerNow()],
+      ['CommandOrControl+Shift+S', () => void this.answerWithScreen()],
       ['CommandOrControl+Shift+H', () => this.toggleOverlay()],
       ['CommandOrControl+Shift+K', () => ipcMain.emit('ctl:clear')],
       ['CommandOrControl+Shift+Left', () => this.nudgeOverlay(-60, 0)],

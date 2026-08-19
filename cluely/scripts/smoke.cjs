@@ -49,7 +49,29 @@ app.whenReady().then(async () => {
   send('ui:transcript', { id: 't2', speaker: 'me', text: 'Sure — two streams, mic and loopback.', final: true, at: Date.now() });
   send('ui:transcript', { id: 't3', speaker: 'them', text: 'and how do you keep them from', final: false, at: Date.now() });
 
+  send('ui:status', {
+    state: 'listening',
+    mic: { capturing: true, stt: 'up' },
+    system: { capturing: true, stt: 'up' },
+    autoAnswer: true,
+    clickThrough: false,
+    materials: '6 files, 41 passages, semantic',
+  });
+
   await wait(700);
+
+  // Exercise the real screen-capture path the Screen hotkey uses.
+  const { captureScreen } = require('../dist/main/screen.js');
+  try {
+    const shot = await captureScreen(640);
+    const png = Buffer.from(shot, 'base64');
+    const isPng = png.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    console.log(`[cluely] screen capture: ${png.length} bytes, valid PNG: ${isPng}`);
+    if (!isPng) process.exitCode = 1;
+  } catch (err) {
+    console.log(`[cluely] screen capture FAILED: ${err.message}`);
+    process.exitCode = 1;
+  }
 
   const image = await win.webContents.capturePage();
   const out = path.join(__dirname, '..', 'dist', 'smoke.png');

@@ -24,11 +24,16 @@ export class OllamaProvider implements AnswerProvider {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          model: this.cfg.ollamaModel,
+          // A screenshot needs a multimodal model; the text model would ignore it.
+          model: request.image ? this.cfg.ollamaVisionModel : this.cfg.ollamaModel,
           stream: true,
           messages: [
             { role: 'system', content: request.system },
-            { role: 'user', content: request.user },
+            {
+              role: 'user',
+              content: request.user,
+              ...(request.image ? { images: [request.image] } : {}),
+            },
           ],
           options: {
             // Low temperature: on a live call we want the likeliest answer, not a creative one.
@@ -46,7 +51,8 @@ export class OllamaProvider implements AnswerProvider {
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 400);
       if (response.status === 404) {
-        throw new Error(`Model "${this.cfg.ollamaModel}" isn't pulled — run: ollama pull ${this.cfg.ollamaModel}`);
+        const model = request.image ? this.cfg.ollamaVisionModel : this.cfg.ollamaModel;
+        throw new Error(`Model "${model}" isn't pulled — run: ollama pull ${model}`);
       }
       throw new Error(`Ollama returned ${response.status}: ${detail || response.statusText}`);
     }
